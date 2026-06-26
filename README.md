@@ -33,25 +33,14 @@ The maximum timed duration is one day.
 
 ## Install
 
-Copy these files into a folder on your PATH:
-
-- `energize.cmd`
-- `deenergize.cmd`
-- `energize.ps1`
-- `deenergize.ps1`
-
-For example:
+Run this in PowerShell:
 
 ```powershell
-$installDir = "$env:LOCALAPPDATA\Programs\energize"
-$binDir = "$installDir\bin"
-New-Item -ItemType Directory -Force $installDir, $binDir
-Copy-Item .\energize.ps1, .\deenergize.ps1 $installDir -Force
-Copy-Item .\energize.cmd, .\deenergize.cmd $binDir -Force
-[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ";$binDir", 'User')
+iwr https://raw.githubusercontent.com/paradoxical-duck/energize/main/install.ps1 -UseB | iex
 ```
 
-Open a new terminal after installing.
+The installer clones or updates the repo under `%LOCALAPPDATA%\Programs\energize`,
+adds the command shims to the user PATH, and updates PATH for the current terminal.
 
 ## Notes
 
