@@ -111,6 +111,35 @@ function Parse-Duration {
     return $span
 }
 
+function Parse-UntilTime {
+    param([string] $Text)
+
+    if ($Text -notmatch '^(?<hour>[01]\d|2[0-3])(?<minute>[0-5]\d)$') {
+        throw "Invalid --until time '$Text'. Use 24-hour HHmm format like 1415."
+    }
+
+    $now = [DateTimeOffset]::Now
+    $target = New-Object DateTimeOffset(
+        $now.Year,
+        $now.Month,
+        $now.Day,
+        [int]$Matches['hour'],
+        [int]$Matches['minute'],
+        0,
+        $now.Offset
+    )
+
+    if ($target -le $now) {
+        $target = $target.AddDays(1)
+    }
+
+    if (($target - $now) -gt [TimeSpan]::FromDays(1)) {
+        throw 'The maximum energize duration is 1 day.'
+    }
+
+    return $target
+}
+
 function Stop-ExistingWorker {
     if (-not (Test-Path -LiteralPath $StatePath)) {
         return
@@ -209,7 +238,10 @@ try {
 }
 
 function Start-Energize {
-    param($Duration)
+    param(
+        $Duration,
+        $UntilDate
+    )
 
     Ensure-BaseDir
     Install-Worker
@@ -229,7 +261,11 @@ function Start-Energize {
 
     $until = $null
     $statusDisplay = 'PC energized indefinitely'
-    if ($null -ne $Duration) {
+    if ($null -ne $UntilDate) {
+        $untilDate = $UntilDate
+        $until = $untilDate.ToString('o')
+        $statusDisplay = "PC energized until $(Format-UntilTime -DateTimeOffset $untilDate)"
+    } elseif ($null -ne $Duration) {
         $untilDate = [DateTimeOffset]::Now.Add($Duration)
         $until = $untilDate.ToString('o')
         $statusDisplay = "PC energized until $(Format-UntilTime -DateTimeOffset $untilDate)"
@@ -289,13 +325,15 @@ if ($Deenergize -or $commandName -ieq 'deenergize') {
     exit 0
 }
 
-if ($ArgsList.Count -gt 1) {
-    throw 'Usage: energize [duration]. Example: energize 1h'
-}
-
 $duration = $null
+$untilDate = $null
+
 if ($ArgsList.Count -eq 1) {
     $duration = Parse-Duration $ArgsList[0]
+} elseif ($ArgsList.Count -eq 2 -and $ArgsList[0] -eq '--until') {
+    $untilDate = Parse-UntilTime $ArgsList[1]
+} elseif ($ArgsList.Count -gt 0) {
+    throw 'Usage: energize [duration] or energize --until HHmm. Examples: energize 1h, energize --until 1415'
 }
 
-Start-Energize -Duration $duration
+Start-Energize -Duration $duration -UntilDate $untilDate

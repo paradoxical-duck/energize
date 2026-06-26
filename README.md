@@ -9,6 +9,7 @@ energize
 energize 1m # Keeps PC on for 1 minute
 energize 1h # Keeps PC on for 1 hour
 energize 1d # Keeps PC on for 1 day
+energize --until 1415 # Keeps PC on until 2:15 PM
 deenergize # PC stays off if lid closed
 ```
 
@@ -28,6 +29,8 @@ Durations support:
 - `m` for minutes
 - `h` for hours
 - `d` for days
+
+You can also use `--until HHmm` with 24-hour time, like `energize --until 1415`.
 
 The maximum timed duration is one day.
 
