@@ -1,15 +1,15 @@
 # energize
 
-Windows keep-awake commands inspired by macOS `caffeinate`.
+energize is a Windows command capable of keeping your laptop awake even when the lid is closed. It is inspired by macOS's `caffeinate`.
 
 ## Usage
 
 ```powershell
 energize
-energize 1m
-energize 1h
-energize 1d
-deenergize
+energize 1m # Keeps PC on for 1 minute
+energize 1h # Keeps PC on for 1 hour
+energize 1d # Keeps PC on for 1 day
+deenergize # PC stays off if lid closed
 ```
 
 `energize` with no duration keeps the machine awake indefinitely until `deenergize` is run.
@@ -47,14 +47,3 @@ adds the command shims to the user PATH, and updates PATH for the current termin
 `energize` blocks Windows idle sleep/display sleep using `SetThreadExecutionState`.
 When Windows exposes lid-close power settings through `powercfg`, it temporarily sets lid-close behavior to do nothing and restores the original values on `deenergize`.
 Windows lock policy is separate from sleep; if your PC is set to lock after inactivity, `energize` does not silently disable that security setting.
-
-## Non-admin test
-
-```powershell
-energize 5m
-Get-Content "$env:LOCALAPPDATA\energize\state.json"
-Get-Process -Id (Get-Content "$env:LOCALAPPDATA\energize\state.json" | ConvertFrom-Json).Pid
-deenergize
-```
-
-If `Get-Process` returns a `powershell` process, the keep-awake worker is running.
