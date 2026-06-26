@@ -58,3 +58,14 @@ Open a new terminal after installing.
 `energize` blocks Windows idle sleep/display sleep using `SetThreadExecutionState`.
 When Windows exposes lid-close power settings through `powercfg`, it temporarily sets lid-close behavior to do nothing and restores the original values on `deenergize`.
 Windows lock policy is separate from sleep; if your PC is set to lock after inactivity, `energize` does not silently disable that security setting.
+
+## Non-admin test
+
+```powershell
+energize 5m
+Get-Content "$env:LOCALAPPDATA\energize\state.json"
+Get-Process -Id (Get-Content "$env:LOCALAPPDATA\energize\state.json" | ConvertFrom-Json).Pid
+deenergize
+```
+
+If `Get-Process` returns a `powershell` process, the keep-awake worker is running.

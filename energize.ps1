@@ -171,9 +171,9 @@ public static class EnergizeNative {
 }
 "@
 
-$ES_CONTINUOUS = 0x80000000
-$ES_SYSTEM_REQUIRED = 0x00000001
-$ES_DISPLAY_REQUIRED = 0x00000002
+$ES_CONTINUOUS = [uint32]2147483648
+$ES_SYSTEM_REQUIRED = [uint32]1
+$ES_DISPLAY_REQUIRED = [uint32]2
 $SubButtons = '4f971e89-eebd-4455-a8de-9e59040e7347'
 $LidAction = '5ca83367-6e45-459f-a27b-476b1d01c9360'
 
@@ -250,7 +250,7 @@ function Start-Energize {
         $workerArgs += @('-UntilIso', $until)
     }
 
-    $process = Start-Process -FilePath powershell.exe -ArgumentList $workerArgs -WindowStyle Hidden -PassThru
+    $process = Start-Process -FilePath powershell.exe -ArgumentList (Join-Arguments -Arguments $workerArgs) -WindowStyle Hidden -PassThru
     $state = [pscustomobject]@{
         Pid = $process.Id
         StartedAt = [DateTimeOffset]::Now.ToString('o')
@@ -269,6 +269,18 @@ function Format-UntilTime {
     param([DateTimeOffset] $DateTimeOffset)
 
     return $DateTimeOffset.LocalDateTime.ToString('h:mm:ss tt')
+}
+
+function Join-Arguments {
+    param([string[]] $Arguments)
+
+    ($Arguments | ForEach-Object {
+        if ($_ -match '[\s"]') {
+            '"' + ($_ -replace '"', '\"') + '"'
+        } else {
+            $_
+        }
+    }) -join ' '
 }
 
 $commandName = [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name)
