@@ -14,6 +14,14 @@ deenergize
 
 `energize` with no duration keeps the machine awake indefinitely until `deenergize` is run.
 
+Example output:
+
+```powershell
+PC energized until 10:34:18 AM
+PC energized indefinitely
+PC deenergized
+```
+
 Durations support:
 
 - `s` for seconds
@@ -49,3 +57,4 @@ Open a new terminal after installing.
 
 `energize` blocks Windows idle sleep/display sleep using `SetThreadExecutionState`.
 When Windows exposes lid-close power settings through `powercfg`, it temporarily sets lid-close behavior to do nothing and restores the original values on `deenergize`.
+Windows lock policy is separate from sleep; if your PC is set to lock after inactivity, `energize` does not silently disable that security setting.

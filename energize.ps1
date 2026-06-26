@@ -143,7 +143,7 @@ function Restore-FromState {
     }
 
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
-    Write-Host 'deenergized'
+    Write-Host 'PC deenergized'
 }
 
 function Install-Worker {
@@ -228,11 +228,11 @@ function Start-Energize {
     }
 
     $until = $null
-    $untilDisplay = 'indefinitely'
+    $statusDisplay = 'PC energized indefinitely'
     if ($null -ne $Duration) {
         $untilDate = [DateTimeOffset]::Now.Add($Duration)
         $until = $untilDate.ToString('o')
-        $untilDisplay = Format-Duration -Duration $Duration
+        $statusDisplay = "PC energized until $(Format-UntilTime -DateTimeOffset $untilDate)"
     }
 
     $workerArgs = @(
@@ -262,31 +262,13 @@ function Start-Energize {
     }
     $state | ConvertTo-Json | Set-Content -LiteralPath $StatePath -Encoding ASCII
 
-    Write-Host "energized $untilDisplay"
+    Write-Host $statusDisplay
 }
 
-function Format-Duration {
-    param($Duration)
+function Format-UntilTime {
+    param([DateTimeOffset] $DateTimeOffset)
 
-    if ($Duration.TotalDays -ge 1 -and $Duration.TotalDays % 1 -eq 0) {
-        $value = [int]$Duration.TotalDays
-        $unit = 'day'
-    } elseif ($Duration.TotalHours -ge 1 -and $Duration.TotalHours % 1 -eq 0) {
-        $value = [int]$Duration.TotalHours
-        $unit = 'hour'
-    } elseif ($Duration.TotalMinutes -ge 1 -and $Duration.TotalMinutes % 1 -eq 0) {
-        $value = [int]$Duration.TotalMinutes
-        $unit = 'minute'
-    } else {
-        $value = [int]$Duration.TotalSeconds
-        $unit = 'second'
-    }
-
-    if ($value -ne 1) {
-        $unit = "${unit}s"
-    }
-
-    return "for $value $unit"
+    return $DateTimeOffset.LocalDateTime.ToString('h:mm:ss tt')
 }
 
 $commandName = [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name)
