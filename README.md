@@ -9,8 +9,10 @@ energize
 energize 1m # Keeps PC on for 1 minute
 energize 1h # Keeps PC on for 1 hour
 energize 1d # Keeps PC on for 1 day
-energize --until 1415 # Keeps PC on until 2:15 PM
+energize until 1415 # Keeps PC on until 2:15 PM
+energise 1h # British spelling also works
 deenergize # PC stays off if lid closed
+deenergise # British spelling also works
 ```
 
 `energize` with no duration keeps the machine awake indefinitely until `deenergize` is run.
@@ -30,7 +32,7 @@ Durations support:
 - `h` for hours
 - `d` for days
 
-You can also use `--until HHmm` with 24-hour time, like `energize --until 1415`.
+You can also use `until HHmm` with 24-hour time, like `energize until 1415`.
 
 The maximum timed duration is one day.
 

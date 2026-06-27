@@ -420,10 +420,10 @@ $untilDate = $null
 
 if ($ArgsList.Count -eq 1) {
     $duration = Parse-Duration $ArgsList[0]
-} elseif ($ArgsList.Count -eq 2 -and $ArgsList[0] -eq '--until') {
+} elseif ($ArgsList.Count -eq 2 -and ($ArgsList[0] -eq 'until' -or $ArgsList[0] -eq '--until')) {
     $untilDate = Parse-UntilTime $ArgsList[1]
 } elseif ($ArgsList.Count -gt 0) {
-    throw 'Usage: energize [duration] or energize --until HHmm. Examples: energize 1h, energize --until 1415'
+    throw 'Usage: energize [duration] or energize until HHmm. Examples: energize 1h, energize until 1415'
 }
 
 Start-Energize -Duration $duration -UntilDate $untilDate

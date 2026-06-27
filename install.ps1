@@ -15,8 +15,9 @@ if (Test-Path -LiteralPath (Join-Path $installDir '.git')) {
 }
 
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-Copy-Item -LiteralPath (Join-Path $installDir 'energize.cmd') -Destination $binDir -Force
-Copy-Item -LiteralPath (Join-Path $installDir 'deenergize.cmd') -Destination $binDir -Force
+foreach ($commandShim in @('energize.cmd', 'energise.cmd', 'deenergize.cmd', 'deenergise.cmd')) {
+    Copy-Item -LiteralPath (Join-Path $installDir $commandShim) -Destination $binDir -Force
+}
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (($userPath -split ';') -notcontains $binDir) {
