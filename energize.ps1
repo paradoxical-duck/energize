@@ -13,7 +13,7 @@ $LogPath = Join-Path $BaseDir 'energize.log'
 $WorkerPath = Join-Path $BaseDir 'energize-worker.ps1'
 
 $SubButtons = '4f971e89-eebd-4455-a8de-9e59040e7347'
-$LidAction = '5ca83367-6e45-459f-a27b-476b1d01c9360'
+$LidAction = '5ca83367-6e45-459f-a27b-476b1d01c936'
 
 function Ensure-BaseDir {
     if (-not (Test-Path -LiteralPath $BaseDir)) {
@@ -29,9 +29,14 @@ function Get-ActiveSchemeGuid {
     throw 'Could not find the active Windows power scheme.'
 }
 
+function Enable-LidSettingAccess {
+    powercfg /attributes $SubButtons $LidAction -ATTRIB_HIDE 2>$null | Out-Null
+}
+
 function Get-LidValues {
     param([string] $SchemeGuid)
 
+    Enable-LidSettingAccess
     $query = powercfg /query $SchemeGuid $SubButtons
     $ac = $null
     $dc = $null
@@ -69,6 +74,7 @@ function Set-LidValues {
         [int] $DC
     )
 
+    Enable-LidSettingAccess
     $acResult = powercfg /setacvalueindex $SchemeGuid $SubButtons $LidAction $AC 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Could not set AC lid-close behavior: $acResult"
@@ -197,16 +203,88 @@ using System.Runtime.InteropServices;
 public static class EnergizeNative {
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern uint SetThreadExecutionState(uint esFlags);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct REASON_CONTEXT {
+        public uint Version;
+        public uint Flags;
+        public IntPtr SimpleReasonString;
+    }
+
+    public enum POWER_REQUEST_TYPE {
+        PowerRequestDisplayRequired = 0,
+        PowerRequestSystemRequired = 1,
+        PowerRequestAwayModeRequired = 2,
+        PowerRequestExecutionRequired = 3
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr PowerCreateRequest(ref REASON_CONTEXT Context);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool PowerSetRequest(IntPtr PowerRequest, POWER_REQUEST_TYPE RequestType);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool PowerClearRequest(IntPtr PowerRequest, POWER_REQUEST_TYPE RequestType);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
 }
 "@
 
 $ES_CONTINUOUS = [uint32]2147483648
 $ES_SYSTEM_REQUIRED = [uint32]1
 $ES_DISPLAY_REQUIRED = [uint32]2
+$ES_AWAYMODE_REQUIRED = [uint32]64
 $SubButtons = '4f971e89-eebd-4455-a8de-9e59040e7347'
-$LidAction = '5ca83367-6e45-459f-a27b-476b1d01c9360'
+$LidAction = '5ca83367-6e45-459f-a27b-476b1d01c936'
+$POWER_REQUEST_CONTEXT_VERSION = [uint32]0
+$POWER_REQUEST_CONTEXT_SIMPLE_STRING = [uint32]1
+$powerRequestHandle = [IntPtr]::Zero
+$reasonString = [IntPtr]::Zero
+
+function Start-PowerRequests {
+    $script:reasonString = [Runtime.InteropServices.Marshal]::StringToHGlobalUni('energize keep-awake request')
+    $context = New-Object EnergizeNative+REASON_CONTEXT
+    $context.Version = $POWER_REQUEST_CONTEXT_VERSION
+    $context.Flags = $POWER_REQUEST_CONTEXT_SIMPLE_STRING
+    $context.SimpleReasonString = $script:reasonString
+
+    $script:powerRequestHandle = [EnergizeNative]::PowerCreateRequest([ref]$context)
+    if ($script:powerRequestHandle -eq [IntPtr]::Zero -or $script:powerRequestHandle -eq [IntPtr]::MinusOne) {
+        throw "PowerCreateRequest failed with Win32 error $([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
+    }
+
+    $requestTypes = @(
+        [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestSystemRequired,
+        [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestDisplayRequired,
+        [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestAwayModeRequired,
+        [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestExecutionRequired
+    )
+
+    foreach ($requestType in $requestTypes) {
+        [EnergizeNative]::PowerSetRequest($script:powerRequestHandle, $requestType) | Out-Null
+    }
+}
 
 function Restore {
+    if ($script:powerRequestHandle -ne [IntPtr]::Zero -and $script:powerRequestHandle -ne [IntPtr]::MinusOne) {
+        $requestTypes = @(
+            [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestSystemRequired,
+            [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestDisplayRequired,
+            [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestAwayModeRequired,
+            [EnergizeNative+POWER_REQUEST_TYPE]::PowerRequestExecutionRequired
+        )
+        foreach ($requestType in $requestTypes) {
+            [EnergizeNative]::PowerClearRequest($script:powerRequestHandle, $requestType) | Out-Null
+        }
+        [EnergizeNative]::CloseHandle($script:powerRequestHandle) | Out-Null
+        $script:powerRequestHandle = [IntPtr]::Zero
+    }
+    if ($script:reasonString -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::FreeHGlobal($script:reasonString)
+        $script:reasonString = [IntPtr]::Zero
+    }
     [EnergizeNative]::SetThreadExecutionState($ES_CONTINUOUS) | Out-Null
     if ($LidManaged -eq 'true' -and $SchemeGuid) {
         powercfg /setacvalueindex $SchemeGuid $SubButtons $LidAction $OriginalLidAC | Out-Null
@@ -222,13 +300,14 @@ try {
         $until = [DateTimeOffset]::Parse($UntilIso)
     }
 
+    Start-PowerRequests
     while ($true) {
-        [EnergizeNative]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED -bor $ES_DISPLAY_REQUIRED) | Out-Null
+        [EnergizeNative]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED -bor $ES_DISPLAY_REQUIRED -bor $ES_AWAYMODE_REQUIRED) | Out-Null
         if ($until -and [DateTimeOffset]::Now -ge $until) {
             Restore
             break
         }
-        Start-Sleep -Seconds 30
+        Start-Sleep -Seconds 10
     }
 } catch {
     Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) Worker error: $($_.Exception.Message)"
@@ -297,6 +376,17 @@ function Start-Energize {
         OriginalLidDC = $(if ($lid) { $lid.DC } else { $null })
     }
     $state | ConvertTo-Json | Set-Content -LiteralPath $StatePath -Encoding ASCII
+
+    Start-Sleep -Milliseconds 750
+    $process.Refresh()
+    if ($process.HasExited) {
+        $details = ''
+        if (Test-Path -LiteralPath $LogPath) {
+            $details = (Get-Content -LiteralPath $LogPath -Tail 5) -join ' '
+        }
+        Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
+        throw "energize worker exited immediately. $details"
+    }
 
     Write-Host $statusDisplay
 }

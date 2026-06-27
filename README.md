@@ -47,6 +47,6 @@ adds the command shims to the user PATH, and updates PATH for the current termin
 
 ## Notes
 
-`energize` blocks Windows idle sleep/display sleep using `SetThreadExecutionState`.
-When Windows exposes lid-close power settings through `powercfg`, it temporarily sets lid-close behavior to do nothing and restores the original values on `deenergize`.
+`energize` blocks Windows idle sleep/display sleep using Windows power requests and `SetThreadExecutionState`.
+It temporarily sets lid-close behavior to do nothing and restores the original values on `deenergize`.
 Windows lock policy is separate from sleep; if your PC is set to lock after inactivity, `energize` does not silently disable that security setting.
