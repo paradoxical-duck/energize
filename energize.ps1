@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 
 $BaseDir = Join-Path $env:LOCALAPPDATA 'energize'
 $StatePath = Join-Path $BaseDir 'state.json'
+$RestoreStatePath = Join-Path $BaseDir 'restore-state.json'
 $LogPath = Join-Path $BaseDir 'energize.log'
 $WorkerPath = Join-Path $BaseDir 'energize-worker.ps1'
 
@@ -147,8 +148,9 @@ function Parse-UntilTime {
 }
 
 function Stop-ExistingWorker {
+    $stopped = $false
     if (-not (Test-Path -LiteralPath $StatePath)) {
-        return
+        return (Stop-WorkerProcessesByCommandLine)
     }
 
     try {
@@ -157,27 +159,57 @@ function Stop-ExistingWorker {
             $process = Get-Process -Id ([int]$state.Pid) -ErrorAction SilentlyContinue
             if ($process) {
                 Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                $stopped = $true
             }
         }
     } catch {
         Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) Existing worker cleanup warning: $($_.Exception.Message)"
     }
+    if (Stop-WorkerProcessesByCommandLine) {
+        $stopped = $true
+    }
+    return $stopped
+}
+
+function Stop-WorkerProcessesByCommandLine {
+    $stopped = $false
+    $escapedWorkerPath = [Regex]::Escape($WorkerPath)
+    $workers = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match $escapedWorkerPath }
+
+    foreach ($worker in $workers) {
+        Stop-Process -Id ([int]$worker.ProcessId) -Force -ErrorAction SilentlyContinue
+        $stopped = $true
+    }
+
+    return $stopped
+}
+
+function Get-RestoreState {
+    if (Test-Path -LiteralPath $StatePath) {
+        return (Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json)
+    }
+    if (Test-Path -LiteralPath $RestoreStatePath) {
+        return (Get-Content -LiteralPath $RestoreStatePath -Raw | ConvertFrom-Json)
+    }
+    return $null
 }
 
 function Restore-FromState {
-    if (-not (Test-Path -LiteralPath $StatePath)) {
+    $state = Get-RestoreState
+    $stoppedWorker = Stop-ExistingWorker
+
+    if ($null -eq $state -and -not $stoppedWorker) {
         Write-Host 'energize is not currently active.'
         return
     }
 
-    $state = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
-    Stop-ExistingWorker
-
-    if ($state.LidManaged -and $state.SchemeGuid -and $null -ne $state.OriginalLidAC -and $null -ne $state.OriginalLidDC) {
+    if ($null -ne $state -and $state.LidManaged -and $state.SchemeGuid -and $null -ne $state.OriginalLidAC -and $null -ne $state.OriginalLidDC) {
         Set-LidValues -SchemeGuid $state.SchemeGuid -AC ([int]$state.OriginalLidAC) -DC ([int]$state.OriginalLidDC)
     }
 
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $RestoreStatePath -Force -ErrorAction SilentlyContinue
     Write-Host 'PC deenergized'
 }
 
@@ -324,7 +356,7 @@ function Start-Energize {
 
     Ensure-BaseDir
     Install-Worker
-    Stop-ExistingWorker
+    Stop-ExistingWorker | Out-Null
 
     $scheme = Get-ActiveSchemeGuid
     $lid = Get-LidValues -SchemeGuid $scheme
@@ -376,6 +408,7 @@ function Start-Energize {
         OriginalLidDC = $(if ($lid) { $lid.DC } else { $null })
     }
     $state | ConvertTo-Json | Set-Content -LiteralPath $StatePath -Encoding ASCII
+    $state | ConvertTo-Json | Set-Content -LiteralPath $RestoreStatePath -Encoding ASCII
 
     Start-Sleep -Milliseconds 750
     $process.Refresh()
