@@ -200,22 +200,12 @@ function Restore-FromState {
     $stoppedWorker = Stop-ExistingWorker
 
     if ($null -eq $state -and -not $stoppedWorker) {
-        try {
-            Set-LidValues -SchemeGuid (Get-ActiveSchemeGuid) -AC 1 -DC 1
-        } catch {
-            Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) Deenergize lid sleep warning: $($_.Exception.Message)"
-        }
-        Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $RestoreStatePath -Force -ErrorAction SilentlyContinue
-        Write-Host 'PC deenergized'
+        Write-Host 'energize is not currently active.'
         return
     }
 
-    $schemeToRestore = if ($null -ne $state -and $state.SchemeGuid) { $state.SchemeGuid } else { Get-ActiveSchemeGuid }
-    try {
-        Set-LidValues -SchemeGuid $schemeToRestore -AC 1 -DC 1
-    } catch {
-        Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) Deenergize lid sleep warning: $($_.Exception.Message)"
+    if ($null -ne $state -and $state.LidManaged -and $state.SchemeGuid -and $null -ne $state.OriginalLidAC -and $null -ne $state.OriginalLidDC) {
+        Set-LidValues -SchemeGuid $state.SchemeGuid -AC ([int]$state.OriginalLidAC) -DC ([int]$state.OriginalLidDC)
     }
 
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
@@ -329,8 +319,8 @@ function Restore {
     }
     [EnergizeNative]::SetThreadExecutionState($ES_CONTINUOUS) | Out-Null
     if ($LidManaged -eq 'true' -and $SchemeGuid) {
-        powercfg /setacvalueindex $SchemeGuid $SubButtons $LidAction 1 | Out-Null
-        powercfg /setdcvalueindex $SchemeGuid $SubButtons $LidAction 1 | Out-Null
+        powercfg /setacvalueindex $SchemeGuid $SubButtons $LidAction $OriginalLidAC | Out-Null
+        powercfg /setdcvalueindex $SchemeGuid $SubButtons $LidAction $OriginalLidDC | Out-Null
         powercfg /setactive $SchemeGuid | Out-Null
     }
     Remove-Item -LiteralPath $StatePath -Force

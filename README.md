@@ -11,7 +11,7 @@ energize 1h # Keeps PC on for 1 hour
 energize 1d # Keeps PC on for 1 day
 energize until 1415 # Keeps PC on until 2:15 PM
 energise 1h # British spelling also works
-deenergize # Lid close goes back to Sleep
+deenergize # PC stays off if lid closed
 deenergise # British spelling also works
 ```
 
@@ -50,5 +50,5 @@ adds the command shims to the user PATH, and updates PATH for the current termin
 ## Notes
 
 `energize` blocks Windows idle sleep/display sleep using Windows power requests and `SetThreadExecutionState`.
-It temporarily sets lid-close behavior to do nothing. `deenergize` sets lid-close behavior back to Sleep.
+It temporarily sets lid-close behavior to do nothing and restores the original values on `deenergize`.
 Windows lock policy is separate from sleep; if your PC is set to lock after inactivity, `energize` does not silently disable that security setting.
