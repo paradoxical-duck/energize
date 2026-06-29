@@ -171,11 +171,15 @@ function Stop-ExistingWorker {
     return $stopped
 }
 
+function Get-WorkerProcessesByCommandLine {
+    $escapedWorkerPath = [Regex]::Escape($WorkerPath)
+    return Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match $escapedWorkerPath }
+}
+
 function Stop-WorkerProcessesByCommandLine {
     $stopped = $false
-    $escapedWorkerPath = [Regex]::Escape($WorkerPath)
-    $workers = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match $escapedWorkerPath }
+    $workers = Get-WorkerProcessesByCommandLine
 
     foreach ($worker in $workers) {
         Stop-Process -Id ([int]$worker.ProcessId) -Force -ErrorAction SilentlyContinue
@@ -211,6 +215,57 @@ function Restore-FromState {
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $RestoreStatePath -Force -ErrorAction SilentlyContinue
     Write-Host 'PC deenergized'
+}
+
+function Test-EnergizeActive {
+    param($State)
+
+    if ($null -ne $State -and $State.Pid) {
+        $process = Get-Process -Id ([int]$State.Pid) -ErrorAction SilentlyContinue
+        if ($process) {
+            return $true
+        }
+    }
+
+    $workers = @(Get-WorkerProcessesByCommandLine)
+    return ($workers.Count -gt 0)
+}
+
+function Show-EnergizeStatus {
+    $state = Get-RestoreState
+    if (-not (Test-EnergizeActive -State $state)) {
+        Write-Host 'PC is not energized'
+        return
+    }
+
+    if ($null -ne $state -and $state.Until) {
+        $until = [DateTimeOffset]::Parse($state.Until)
+        Write-Host "PC energized until $(Format-UntilTime -DateTimeOffset $until)"
+        return
+    }
+
+    Write-Host 'PC energized indefinitely'
+}
+
+function Show-EnergizeHelp {
+    @'
+energize
+energize <duration>
+energize until <HHmm>
+energize status
+energize help
+deenergize
+
+Aliases:
+energise
+deenergise
+
+Examples:
+energize 1m
+energize 1h
+energize 1d
+energize until 1415
+'@ | Write-Host
 }
 
 function Install-Worker {
@@ -445,6 +500,16 @@ function Join-Arguments {
 $commandName = [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name)
 if ($Deenergize -or $commandName -ieq 'deenergize') {
     Restore-FromState
+    exit 0
+}
+
+if ($ArgsList.Count -eq 1 -and $ArgsList[0] -eq 'status') {
+    Show-EnergizeStatus
+    exit 0
+}
+
+if ($ArgsList.Count -eq 1 -and ($ArgsList[0] -eq 'help' -or $ArgsList[0] -eq '-h' -or $ArgsList[0] -eq '--help')) {
+    Show-EnergizeHelp
     exit 0
 }
 

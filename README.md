@@ -10,6 +10,8 @@ energize 1m # Keeps PC on for 1 minute
 energize 1h # Keeps PC on for 1 hour
 energize 1d # Keeps PC on for 1 day
 energize until 1415 # Keeps PC on until 2:15 PM
+energize status # Shows whether the PC is currently energized
+energize help # Shows all energize commands
 energise 1h # British spelling also works
 deenergize # PC stays off if lid closed
 deenergise # British spelling also works
@@ -22,6 +24,7 @@ Example output:
 ```powershell
 PC energized until 10:34:18 AM
 PC energized indefinitely
+PC is not energized
 PC deenergized
 ```
 
